@@ -87,7 +87,15 @@ cd netbox-podman/scripts
     --dst /opt/netbox/configuration
 ```
 
-> The script copies all `*.env` files from `--src` as-is. **Edit them before starting the containers** — set database credentials, secret keys, and allowed hosts.
+>  **The env files ship with default passwords.** They are intentionally pre-filled so the stack starts out of the box, but they **must be changed** before or immediately after the first run.
+>
+> **Workflow:**
+> 1. Copy the env files using the command above
+> 2. Edit `/opt/netbox/configuration/*.env` and replace all default credentials with strong, unique values
+> 3. Start the stack — NetBox will initialise the database using the values from the env files
+> 4. After the first successful login, verify everything works, then rotate the passwords again if needed
+>
+> The rest of the NetBox setup (creating a superuser, loading initial data, etc.) follows the standard NetBox workflow — refer to the [official NetBox documentation](https://docs.netbox.dev) for those steps.
 
 ### 3.2 Copy NetBox Configuration Files
 
@@ -127,7 +135,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
     -subj "/CN=netbox.internal"
 ```
 
->  **TLS is not configured automatically.** After obtaining a certificate, manually update the nginx quadlet unit to mount and reference the correct paths.
+> **TLS is not configured automatically.** After obtaining a certificate, manually update the nginx quadlet unit to mount and reference the correct paths.
 
 ---
 
