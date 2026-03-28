@@ -1,0 +1,5 @@
+[Volume]
+VolumeName=netbox-postgres-db-data
+Device=/opt/netbox/storage/netbox-postgres-data
+Type=none
+Options=bind

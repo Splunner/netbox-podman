@@ -1,0 +1,5 @@
+[Volume]
+VolumeName=netbox-redis-cache-data
+Device=/opt/netbox/storage/netbox-redis-cache-data
+Type=none
+Options=bind

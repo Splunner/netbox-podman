@@ -1,0 +1,37 @@
+[Unit]
+Description=NetBox - RQ worker (background jobs)
+After=network-online.target netbox-production-network.service netbox.service
+Requires=netbox-production-network.service netbox.service
+
+[Container]
+Image=docker.io/netboxcommunity/netbox:v4.5-4.0.2
+ContainerName=netbox-worker
+
+Network=netbox-production-network
+
+EnvironmentFile=/opt/netbox/configuration/netbox.env
+
+User=netbox:root
+
+# Volumes inherited from <<: *netbox anchor
+Volume=/opt/netbox/configuration/netbox_configuration:/etc/netbox/config:z,ro
+Volume=netbox-media-files:/opt/netbox/netbox/media:rw
+Volume=netbox-reports-files:/opt/netbox/netbox/reports:rw
+Volume=netbox-scripts-files:/opt/netbox/netbox/scripts:rw
+
+# Overridden command (replaces the default netbox entrypoint)
+Exec=/opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
+
+# Overridden healthcheck
+HealthCmd=ps -aux | grep -v grep | grep -q rqworker || exit 1
+HealthStartPeriod=20s
+HealthTimeout=3s
+HealthInterval=15s
+HealthRetries=5
+
+[Service]
+Restart=unless-stopped
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

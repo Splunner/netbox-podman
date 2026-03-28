@@ -1,0 +1,5 @@
+[Volume]
+VolumeName=netbox-scripts-files.volume
+Device=/opt/netbox/storage/netbox-scripts-files
+Type=none
+Options=bind

@@ -1,0 +1,30 @@
+[Unit]
+Description=NetBox - Valkey (Redis) 9.0 cache
+After=network-online.target netbox-production-network.service
+Requires=netbox-production-network.service
+
+[Container]
+Image=docker.io/valkey/valkey:9.0-alpine
+ContainerName=netbox-redis-cache
+
+Network=netbox-production-network
+
+EnvironmentFile=/opt/netbox/configuration/redis-cache.env
+
+Volume=netbox-redis-cache-data.volume:/data
+
+# Cache: no --appendonly (unlike the tasks redis instance)
+Exec=sh -c "valkey-server --requirepass $REDIS_PASSWORD"
+
+# Healthcheck identical to redis (*redis-healthcheck anchor in compose)
+HealthCmd=sh -c "[ $$(valkey-cli --pass \"$REDIS_PASSWORD\" ping) = 'PONG' ]"
+HealthStartPeriod=5s
+HealthTimeout=3s
+HealthInterval=1s
+HealthRetries=5
+
+[Service]
+Restart=unless-stopped
+
+[Install]
+WantedBy=multi-user.target

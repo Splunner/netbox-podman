@@ -1,0 +1,5 @@
+[Volume]
+VolumeName=netbox-redis-data
+Device=/opt/netbox/storage/netbox-redis-data
+Type=none
+Options=bind

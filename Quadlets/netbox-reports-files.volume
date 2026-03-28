@@ -1,0 +1,5 @@
+[Volume]
+VolumeName=netbox-reports-files
+Device=/opt/netbox/storage/netbox-reports-files
+Type=none
+Options=bind

@@ -1,0 +1,41 @@
+[Unit]
+Description=NetBox - web application
+After=network-online.target netbox-production-network.service postgres.service netbox-redis.service netbox-redis-cache.service
+Requires=netbox-production-network.service netbox-postgres.service netbox-redis.service netbox-redis-cache.service
+
+[Container]
+Image=docker.io/netboxcommunity/netbox:v4.5-4.0.2
+ContainerName=netbox
+
+Network=netbox-production-network
+
+
+
+User=netbox:root
+
+# Expose port 8080 (container) → 8000 (host)
+PublishPort=127.0.0.1:8080:8080
+
+
+EnvironmentFile=/opt/netbox/configuration/netbox.env
+
+# Bind mount configuration directory
+Volume=/opt/netbox/configuration/netbox_configuration:/etc/netbox/config:z,ro
+
+# Named volumes
+Volume=netbox-media-files:/opt/netbox/netbox/media:rw
+Volume=netbox-reports-files/opt/netbox/netbox/reports:rw
+Volume=netbox-scripts-files:/opt/netbox/netbox/scripts:rw
+
+HealthCmd=curl -f http://localhost:8080/login/ || exit 1
+HealthStartPeriod=90s
+HealthTimeout=3s
+HealthInterval=15s
+HealthRetries=5
+
+[Service]
+Restart=unless-stopped
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

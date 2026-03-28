@@ -1,0 +1,5 @@
+[Volume]
+VolumeName=netbox-media-files
+Device=/opt/netbox/storage/netbox-media-files
+Type=none
+Options=bind

@@ -1,0 +1,28 @@
+[Unit]
+Description=NetBox - PostgreSQL 18
+After=network-online.target netbox-production-network.service
+Requires=netbox-production-network.service 
+# Requies as well netbox-postgres-db-data.volume
+
+[Container]
+Image=docker.io/postgres:18-alpine
+ContainerName=netbox-postgres
+
+Network=netbox-production-network
+
+EnvironmentFile=/opt/netbox/configuration/postgres.env
+
+Volume=netbox-postgres-db-data.volume:/var/lib/postgresql
+
+HealthCmd=pg_isready -q -t 2 -d $POSTGRES_DB -U $POSTGRES_USER
+HealthStartPeriod=20s
+HealthTimeout=30s
+HealthInterval=10s
+HealthRetries=5
+
+[Service]
+Restart=unless-stopped
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

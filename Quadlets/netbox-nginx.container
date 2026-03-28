@@ -1,0 +1,31 @@
+[Unit]
+Description=NetBox - nginx reverse proxy
+After=network-online.target netbox-production-network.service netbox.service
+Requires=netbox-production-network.service netbox.service
+
+[Container]
+Image=docker.io/nginx:alpine
+ContainerName=netbox-nginx
+
+Network=netbox-production-network
+
+# Exposed publicly on all interfaces
+PublishPort=0.0.0.0:80:80
+
+# nginx config
+Volume=/opt/netbox/configuration/nginx.conf:/etc/nginx/nginx.conf:z,ro
+
+# Serve media files directly from nginx (bypass gunicorn)
+Volume=netbox-media-files:/opt/netbox/netbox/media:ro
+
+HealthCmd=curl -f http://localhost:80/ || exit 1
+HealthStartPeriod=20s
+HealthTimeout=3s
+HealthInterval=15s
+HealthRetries=5
+
+[Service]
+Restart=unless-stopped
+
+[Install]
+WantedBy=multi-user.target
