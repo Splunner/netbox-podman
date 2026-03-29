@@ -3,7 +3,6 @@
 Rootless NetBox deployment using Podman Quadlets and systemd — no Docker, no root daemon.
 
 > **Before anything else:** clone this repository locally and run the scripts from within it. All paths in this guide are relative to the repository root.
-
 ```bash
 git clone https://github.com/your-org/netbox-podman.git
 cd netbox-podman
@@ -37,22 +36,34 @@ cd netbox-podman
 ## 2. System Preparation
 
 ### 2.1 Allow Rootless Binding to Port 80
-
 ```bash
 echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
 ### 2.2 Create the NetBox Base Directory
-
 ```bash
 sudo mkdir -p /opt/netbox
 sudo chown podmanadm:podmanadm /opt/netbox
 sudo chmod -R 755 /opt/netbox
 ```
 
-### 2.3 Generate Directory Structure
+### 2.3 Enable User Lingering
 
+By default, `--user` services only run while the user is logged in and are killed on logout. To make the NetBox stack start at boot and run without an active login session, enable **lingering** for the service account:
+```bash
+sudo loginctl enable-linger podmanadm
+```
+
+Verify it is enabled:
+```bash
+loginctl show-user podmanadm | grep Linger
+# Expected output: Linger=yes
+```
+
+> **This step is required.** Without lingering, all NetBox containers will stop the moment the `podmanadm` session ends, and they will not start automatically after a reboot.
+
+### 2.4 Generate Directory Structure
 ```bash
 cd netbox-podman/scripts
 chmod +x files_manager.sh
@@ -60,7 +71,6 @@ chmod +x files_manager.sh
 ```
 
 This creates the following layout under `/opt/netbox/`:
-
 ```
 /opt/netbox/
 ├── configuration/
@@ -79,7 +89,6 @@ This creates the following layout under `/opt/netbox/`:
 ## 3. Configuration
 
 ### 3.1 Copy Environment Files
-
 ```bash
 cd netbox-podman/scripts
 ./files_manager.sh --copy-env-files \
@@ -98,7 +107,6 @@ cd netbox-podman/scripts
 > The rest of the NetBox setup (creating a superuser, loading initial data, etc.) follows the standard NetBox workflow — refer to the [official NetBox documentation](https://docs.netbox.dev) for those steps.
 
 ### 3.2 Copy NetBox Configuration Files
-
 ```bash
 cd netbox-podman/scripts
 ./files_manager.sh --copy-configuration-files \
@@ -113,7 +121,6 @@ cd netbox-podman/scripts
 NetBox requires HTTPS. Choose one option:
 
 ### Option A — Certbot (Let's Encrypt)
-
 ```bash
 # Install certbot (Debian/Ubuntu)
 sudo apt install -y certbot
@@ -127,7 +134,6 @@ sudo certbot certonly --standalone -d your.domain.com
 ```
 
 ### Option B — Self-signed Certificate
-
 ```bash
 openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
     -keyout /opt/netbox/configuration/netbox.key \
@@ -142,7 +148,6 @@ openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
 ## 5. Quadlet Units
 
 ### 5.1 Install
-
 ```bash
 cd netbox-podman/scripts
 chmod +x quadlets_manager.sh
@@ -160,7 +165,6 @@ sudo ./quadlets_manager.sh --install-root
 | `--install-root` | `/etc/containers/systemd` | Requires sudo |
 
 ### 5.2 Reload systemd
-
 ```bash
 ./quadlets_manager.sh --reload
 ```
@@ -168,21 +172,20 @@ sudo ./quadlets_manager.sh --install-root
 ### 5.3 Start the Stack
 
 Start components in order: **network → volumes → containers**
-
 ```bash
 ./quadlets_manager.sh --start-network
 ./quadlets_manager.sh --start-volumes
 ./quadlets_manager.sh --start-quadlets
 ```
 
-### 5.4 Enable Auto-start on Login
-
+### 5.4 Enable Auto-start on Boot
 ```bash
 ./quadlets_manager.sh --enable-quadlets
 ```
 
-### 5.5 Status & Monitoring
+> **Note:** `--enable-quadlets` runs `systemctl --user enable` on each unit, which registers them to start automatically. This works correctly only if lingering is already enabled (see [Section 2.3](#23-enable-user-lingering)). Without lingering, the units are enabled but will not start at boot.
 
+### 5.5 Status & Monitoring
 ```bash
 ./quadlets_manager.sh --status-network   # podman network ls
 ./quadlets_manager.sh --status-volumes   # podman volume ls
@@ -192,7 +195,6 @@ podman logs -f netbox
 ```
 
 ### 5.6 Stop the Stack
-
 ```bash
 ./quadlets_manager.sh --stop-quadlets
 ```
@@ -202,7 +204,6 @@ podman logs -f netbox
 ## 6. Backup & Restore
 
 ### 6.1 Create a Backup
-
 ```bash
 cd netbox-podman/scripts
 chmod +x backup_manager.sh
@@ -212,7 +213,6 @@ chmod +x backup_manager.sh
 Archives are saved to `/opt/netbox/storage/backup/` as `backup_YYYYMMDD_HHMMSS.tar.gz`.
 
 Each archive contains:
-
 ```
 backup_20260328_224800.tar.gz
 ├── db/
@@ -224,7 +224,6 @@ backup_20260328_224800.tar.gz
 ```
 
 ### 6.2 Restore from a Backup
-
 ```bash
 ./backup_manager.sh --restore \
     --file /opt/netbox/storage/backup/backup_20260328_224800.tar.gz
@@ -237,7 +236,6 @@ The restore process:
 3. Copies `/opt/netbox/configuration` files back to their original location
 
 After restoring, reload systemd and restart the stack:
-
 ```bash
 systemctl --user daemon-reload
 ./quadlets_manager.sh --start-quadlets
@@ -282,20 +280,20 @@ systemctl --user daemon-reload
 ---
 
 ## 8. Quick-Start Checklist
-
 ```
 [ ] 1.  Clone the repository
 [ ] 2.  Allow unprivileged port 80 (sysctl)
 [ ] 3.  Create /opt/netbox and set ownership
-[ ] 4.  Run: files_manager.sh --generate-configuration-directories
-[ ] 5.  Copy and edit environment files (--copy-env-files)
-[ ] 6.  Copy NetBox configuration files (--copy-configuration-files)
-[ ] 7.  Obtain or generate a TLS certificate and configure nginx manually
-[ ] 8.  Install quadlet units (--install-local or --install-root)
-[ ] 9.  Reload systemd (--reload)
-[ ] 10. Start the stack: --start-network → --start-volumes → --start-quadlets
-[ ] 11. Enable auto-start (--enable-quadlets)
-[ ] 12. Create an initial backup (backup_manager.sh --backup)
+[ ] 4.  Enable user lingering (loginctl enable-linger podmanadm)
+[ ] 5.  Run: files_manager.sh --generate-configuration-directories
+[ ] 6.  Copy and edit environment files (--copy-env-files)
+[ ] 7.  Copy NetBox configuration files (--copy-configuration-files)
+[ ] 8.  Obtain or generate a TLS certificate and configure nginx manually
+[ ] 9.  Install quadlet units (--install-local or --install-root)
+[ ] 10. Reload systemd (--reload)
+[ ] 11. Start the stack: --start-network → --start-volumes → --start-quadlets
+[ ] 12. Enable auto-start (--enable-quadlets)
+[ ] 13. Create an initial backup (backup_manager.sh --backup)
 ```
 
->  **Step 7 is manual.** TLS configuration is not handled by any script. Update the nginx quadlet unit to mount your certificate and key before starting the stack.
+>  **Step 8 is manual.** TLS configuration is not handled by any script. Update the nginx quadlet unit to mount your certificate and key before starting the stack.

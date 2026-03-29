@@ -11,7 +11,7 @@ Network=netbox-production-network
 
 EnvironmentFile=/opt/netbox/configuration/redis-cache.env
 
-Volume=netbox-redis-cache-data.volume:/data
+Volume=netbox-redis-cache-data:/data
 
 # Cache: no --appendonly (unlike the tasks redis instance)
 Exec=sh -c "valkey-server --requirepass $REDIS_PASSWORD"
@@ -24,7 +24,10 @@ HealthInterval=1s
 HealthRetries=5
 
 [Service]
-Restart=unless-stopped
+TimeoutStopSec=70
+# Don't restart during shutdown
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target

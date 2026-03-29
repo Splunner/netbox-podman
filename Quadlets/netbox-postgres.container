@@ -12,7 +12,7 @@ Network=netbox-production-network
 
 EnvironmentFile=/opt/netbox/configuration/postgres.env
 
-Volume=netbox-postgres-db-data.volume:/var/lib/postgresql
+Volume=netbox-postgres-db-data:/var/lib/postgresql:Z
 
 HealthCmd=pg_isready -q -t 2 -d $POSTGRES_DB -U $POSTGRES_USER
 HealthStartPeriod=20s
@@ -21,7 +21,10 @@ HealthInterval=10s
 HealthRetries=5
 
 [Service]
-Restart=unless-stopped
+TimeoutStopSec=70
+# Don't restart during shutdown
+Restart=on-failure
+RestartSec=5s
 TimeoutStartSec=120
 
 [Install]

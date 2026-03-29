@@ -30,8 +30,10 @@ HealthInterval=15s
 HealthRetries=5
 
 [Service]
-Restart=unless-stopped
-TimeoutStartSec=120
+TimeoutStopSec=70
+# Don't restart during shutdown
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target

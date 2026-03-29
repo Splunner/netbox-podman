@@ -11,7 +11,7 @@ Network=netbox-production-network
 
 EnvironmentFile=/opt/netbox/configuration/redis.env
 
-Volume=netbox-redis-data.volume:/data
+Volume=netbox-redis-data:/data:Z
 
 Exec=sh -c "valkey-server --appendonly yes --requirepass $REDIS_PASSWORD"
 
@@ -22,7 +22,10 @@ HealthInterval=1s
 HealthRetries=5
 
 [Service]
-Restart=unless-stopped
+TimeoutStopSec=70
+# Don't restart during shutdown
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
