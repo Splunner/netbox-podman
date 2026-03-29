@@ -40,6 +40,7 @@ ${BOLD}Usage:${RESET}
   $0 --start-network
   $0 --start-volumes
   $0 --start-quadlets
+  $0 --start-all
   $0 --stop-quadlets
   $0 --enable-quadlets
   $0 --status-network
@@ -52,18 +53,17 @@ ${BOLD}Arguments:${RESET}
   --reload            systemctl --user daemon-reload
   --start-network     Start netbox-production-network
   --start-volumes     Start all NetBox volumes
-  --start-quadlets    Start all containers in order (with delays)
+  --start-quadlets    Enable and start all containers in order (with delays)
+  --start-all         Full stack start: network → volumes → enable → containers
   --stop-quadlets     Stop all containers in reverse order (with delays)
-  --enable-quadlets   Enable all containers to start on login
+  --enable-quadlets   Enable all containers to start on boot (requires lingering)
   --status-network    Show NetBox networks (podman network ls)
   --status-volumes    Show NetBox volumes (podman volume ls)
 
 ${BOLD}Examples:${RESET}
   $0 --install-local
   $0 --reload
-  $0 --start-network
-  $0 --start-volumes
-  $0 --start-quadlets
+  $0 --start-all
   $0 --status-network
   $0 --status-volumes
 "
@@ -230,10 +230,26 @@ start_volumes() {
     log_ok "All volumes started."
 }
 
+# ── --enable-quadlets ─────────────────────────────────────────────────────────
+
+enable_quadlets() {
+    header "Enable NetBox containers (autostart on boot)"
+    for svc in "${CONTAINERS_START[@]}"; do
+        systemctl --user enable "${svc}.service" && log_ok "Enabled: ${svc}" || log_warn "Could not enable: ${svc}"
+    done
+    echo ""
+    log_ok "All containers enabled."
+    echo -e "\n  ${CYAN}Note: rootless units require lingering to start on boot without login.${RESET}"
+    echo -e "  ${CYAN}To enable lingering:  sudo loginctl enable-linger \$(whoami)${RESET}\n"
+}
+
 # ── --start-quadlets ──────────────────────────────────────────────────────────
 
 start_quadlets() {
     header "Start NetBox containers (ordered)"
+
+    enable_quadlets
+
     local total="${#CONTAINERS_START[@]}"
     local i=1
 
@@ -250,6 +266,19 @@ start_quadlets() {
 
     echo ""
     log_ok "All containers started."
+}
+
+# ── --start-all ───────────────────────────────────────────────────────────────
+
+start_all() {
+    header "Full stack start — network → volumes → enable → containers"
+    start_network
+    echo ""
+    start_volumes
+    echo ""
+    start_quadlets
+    echo ""
+    log_ok "NetBox stack is up."
 }
 
 # ── --stop-quadlets ───────────────────────────────────────────────────────────
@@ -272,19 +301,6 @@ stop_quadlets() {
 
     echo ""
     log_ok "All containers stopped."
-}
-
-# ── --enable-quadlets ─────────────────────────────────────────────────────────
-
-enable_quadlets() {
-    header "Enable NetBox containers (autostart on login)"
-    for svc in "${CONTAINERS_START[@]}"; do
-        systemctl --user enable "${svc}.service" && log_ok "Enabled: ${svc}" || log_warn "Could not enable: ${svc}"
-    done
-    echo ""
-    log_ok "All containers enabled."
-    echo -e "\n  ${CYAN}Note: rootless units start on user login / linger.${RESET}"
-    echo -e "  ${CYAN}To start on boot without login:  sudo loginctl enable-linger \$(whoami)${RESET}\n"
 }
 
 # ── --status-network ──────────────────────────────────────────────────────────
@@ -316,6 +332,7 @@ case "$1" in
     --start-network)         start_network ;;
     --start-volumes)         start_volumes ;;
     --start-quadlets)        start_quadlets ;;
+    --start-all)             start_all ;;
     --stop-quadlets)         stop_quadlets ;;
     --enable-quadlets)       enable_quadlets ;;
     --status-network)        status_network ;;

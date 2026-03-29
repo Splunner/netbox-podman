@@ -96,7 +96,7 @@ cd netbox-podman/scripts
     --dst /opt/netbox/configuration
 ```
 
->  **The env files ship with default passwords.** They are intentionally pre-filled so the stack starts out of the box, but they **must be changed** before or immediately after the first run.
+> **The env files ship with default passwords.** They are intentionally pre-filled so the stack starts out of the box, but they **must be changed** before or immediately after the first run.
 >
 > **Workflow:**
 > 1. Copy the env files using the command above
@@ -171,19 +171,28 @@ sudo ./quadlets_manager.sh --install-root
 
 ### 5.3 Start the Stack
 
-Start components in order: **network → volumes → containers**
+The quickest way — one command does everything:
+```bash
+./quadlets_manager.sh --start-all
+```
+
+This runs in order: **network → volumes → enable → containers**
+
+Or step by step:
 ```bash
 ./quadlets_manager.sh --start-network
 ./quadlets_manager.sh --start-volumes
-./quadlets_manager.sh --start-quadlets
+./quadlets_manager.sh --start-quadlets   # also enables units automatically
 ```
 
 ### 5.4 Enable Auto-start on Boot
+
+Units are enabled automatically by `--start-quadlets` and `--start-all`. To enable without starting:
 ```bash
 ./quadlets_manager.sh --enable-quadlets
 ```
 
-> **Note:** `--enable-quadlets` runs `systemctl --user enable` on each unit, which registers them to start automatically. This works correctly only if lingering is already enabled (see [Section 2.3](#23-enable-user-lingering)). Without lingering, the units are enabled but will not start at boot.
+> **Note:** `--enable-quadlets` requires lingering to take effect at boot (see [Section 2.3](#23-enable-user-lingering)). Without lingering, units are registered but will not start until the user logs in.
 
 ### 5.5 Status & Monitoring
 ```bash
@@ -238,7 +247,7 @@ The restore process:
 After restoring, reload systemd and restart the stack:
 ```bash
 systemctl --user daemon-reload
-./quadlets_manager.sh --start-quadlets
+./quadlets_manager.sh --start-all
 ```
 
 ---
@@ -263,9 +272,10 @@ systemctl --user daemon-reload
 | `--reload` | Run `systemctl --user daemon-reload` |
 | `--start-network` | Start the `netbox-production-network` |
 | `--start-volumes` | Start all NetBox volumes |
-| `--start-quadlets` | Start all containers in order (with delays) |
+| `--start-quadlets` | Enable and start all containers in order (with delays) |
+| `--start-all` | Full stack start: network → volumes → enable → containers |
 | `--stop-quadlets` | Stop all containers in reverse order (with delays) |
-| `--enable-quadlets` | Enable all containers to start on login |
+| `--enable-quadlets` | Enable all containers to start on boot (requires lingering) |
 | `--status-network` | Show NetBox networks (`podman network ls`) |
 | `--status-volumes` | Show NetBox volumes (`podman volume ls`) |
 
@@ -291,9 +301,8 @@ systemctl --user daemon-reload
 [ ] 8.  Obtain or generate a TLS certificate and configure nginx manually
 [ ] 9.  Install quadlet units (--install-local or --install-root)
 [ ] 10. Reload systemd (--reload)
-[ ] 11. Start the stack: --start-network → --start-volumes → --start-quadlets
-[ ] 12. Enable auto-start (--enable-quadlets)
-[ ] 13. Create an initial backup (backup_manager.sh --backup)
+[ ] 11. Start the stack: --start-all  (or step by step: --start-network → --start-volumes → --start-quadlets)
+[ ] 12. Create an initial backup (backup_manager.sh --backup)
 ```
 
->  **Step 8 is manual.** TLS configuration is not handled by any script. Update the nginx quadlet unit to mount your certificate and key before starting the stack.
+> **Step 8 is manual.** TLS configuration is not handled by any script. Update the nginx quadlet unit to mount your certificate and key before starting the stack.
