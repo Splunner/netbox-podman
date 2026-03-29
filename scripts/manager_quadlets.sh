@@ -96,12 +96,13 @@ CONTAINERS_START=(
     "netbox-redis-cache"
     "netbox"
     "netbox-worker"
-    "netbox-housekeeping"
+    "netbox-nginx"
+
 )
 
 # Stop order (reverse)
 CONTAINERS_STOP=(
-    "netbox-housekeeping"
+    "netbox-nginx"
     "netbox-worker"
     "netbox"
     "netbox-redis-cache"
@@ -109,7 +110,7 @@ CONTAINERS_STOP=(
     "netbox-postgres"
 )
 
-WAIT_SECONDS=10
+WAIT_SECONDS=25
 
 # ── --install-local ───────────────────────────────────────────────────────────
 
@@ -230,36 +231,57 @@ start_volumes() {
     log_ok "All volumes started."
 }
 
-# ── --enable-quadlets ─────────────────────────────────────────────────────────
-
-enable_quadlets() {
-    header "Enable NetBox containers (autostart on boot)"
-    for svc in "${CONTAINERS_START[@]}"; do
-        systemctl --user enable "${svc}.service" && log_ok "Enabled: ${svc}" || log_warn "Could not enable: ${svc}"
-    done
-    echo ""
-    log_ok "All containers enabled."
-    echo -e "\n  ${CYAN}Note: rootless units require lingering to start on boot without login.${RESET}"
-    echo -e "  ${CYAN}To enable lingering:  sudo loginctl enable-linger \$(whoami)${RESET}\n"
-}
 
 # ── --start-quadlets ──────────────────────────────────────────────────────────
 
 start_quadlets() {
     header "Start NetBox containers (ordered)"
 
-    enable_quadlets
-
     local total="${#CONTAINERS_START[@]}"
     local i=1
+    local first_run=false
+
+    # Detect first run — postgres data directory empty (cluster not yet initialised)
+    if [[ -z "$(podman volume inspect netbox-postgres-db-data --format '{{.Mountpoint}}' 2>/dev/null | xargs ls 2>/dev/null)" ]]; then
+        first_run=true
+        log_warn "First run detected — extended startup delays will apply."
+    fi
 
     for svc in "${CONTAINERS_START[@]}"; do
         log_info "[${i}/${total}] Starting: ${svc}"
-        systemctl --user start "${svc}.service" && log_ok "${svc} started" || log_fail "${svc} failed to start"
+        systemctl --user start "${svc}" && log_ok "${svc} started" || log_fail "${svc} failed to start"
 
         if [[ ${i} -lt ${total} ]]; then
-            log_info "Waiting ${WAIT_SECONDS}s before next service..."
-            sleep "${WAIT_SECONDS}"
+            if [[ "${svc}" == "netbox" && "${first_run}" == true ]]; then
+                log_info "First run — waiting up to 300s for NetBox to finish initialisation..."
+                local elapsed=0
+                local interval=5
+                local timeout=300
+                local ready=false
+
+                while [[ ${elapsed} -lt ${timeout} ]]; do
+                    if podman logs netbox 2>&1 | grep -q "Finished\|spawned uWSGI"; then
+                        log_ok "NetBox is ready (${elapsed}s)"
+                        ready=true
+                        break
+                    fi
+                    sleep "${interval}"
+                    (( elapsed += interval )) || true
+                    log_info "Still waiting for NetBox... (${elapsed}s / ${timeout}s)"
+                done
+
+                if [[ "${ready}" == false ]]; then
+                    log_warn "NetBox did not report ready within ${timeout}s — continuing anyway."
+                    log_warn "Check logs: podman logs netbox"
+                fi
+
+            elif [[ "${svc}" == "netbox-worker" ]]; then
+                log_info "Waiting 60s after netbox-worker..."
+                sleep 60
+            else
+                log_info "Waiting ${WAIT_SECONDS}s before next service..."
+                sleep "${WAIT_SECONDS}"
+            fi
         fi
         (( i++ )) || true
     done
@@ -334,7 +356,6 @@ case "$1" in
     --start-quadlets)        start_quadlets ;;
     --start-all)             start_all ;;
     --stop-quadlets)         stop_quadlets ;;
-    --enable-quadlets)       enable_quadlets ;;
     --status-network)        status_network ;;
     --status-volumes)        status_volumes ;;
     --help|-h)               usage ;;
